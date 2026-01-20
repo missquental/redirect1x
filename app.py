@@ -1,21 +1,52 @@
-# File: redirect_app.py (untuk livenews1x.streamlit.app)
+# File: redirect_app_advanced.py (versi lebih cerdas)
 import streamlit as st
 import requests
 import json
 import urllib.parse
+import re
 
 st.set_page_config(page_title="Redirect Handler", layout="centered")
 
-# Konfigurasi OAuth yang sama
+# Konfigurasi OAuth
 CLIENT_ID = "1086578184958-hin4d45sit9ma5psovppiq543eho41sl.apps.googleusercontent.com"
 CLIENT_SECRET = "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"
-REDIRECT_URI = "https://redirect1x.streamlit.app"
-TARGET_APP = "https://serverliveupdate12.streamlit.app"  # Aplikasi tujuan
+REDIRECT_URI = "https://livenews1x.streamlit.app"
 
 st.title("🔑 Proses Autentikasi YouTube")
 
-# Cek parameter code dari URL
+# Fungsi untuk mendeteksi aplikasi tujuan secara otomatis
+def detect_target_app(current_domain):
+    """Deteksi aplikasi tujuan berdasarkan pola nama domain"""
+    if "livenews1x" in current_domain:
+        return current_domain.replace("livenews1x", "livenews2x")
+    elif "redirect" in current_domain:
+        return current_domain.replace("redirect", "main")
+    elif "auth" in current_domain:
+        return current_domain.replace("auth", "app")
+    else:
+        # Pattern matching untuk kasus umum
+        patterns = [
+            (r'(\w+)1x(\.streamlit\.app)', lambda m: f"{m.group(1)}2x{m.group(2)}"),
+            (r'(\w+)redirect(\.streamlit\.app)', lambda m: f"{m.group(1)}main{m.group(2)}"),
+            (r'(.*?)-auth(\.streamlit\.app)', lambda m: f"{m.group(1)}-app{m.group(2)}")
+        ]
+        
+        for pattern, replacement in patterns:
+            match = re.search(pattern, current_domain)
+            if match:
+                return re.sub(pattern, replacement, current_domain)
+        
+        # Fallback default
+        return "https://livenews2x.streamlit.app"
+
+# Dapatkan parameter dari URL
 query_params = st.query_params
+
+# Deteksi aplikasi tujuan
+current_domain = "livenews1x.streamlit.app"  # Domain saat ini
+TARGET_APP = f"https://{detect_target_app(current_domain)}"
+
+st.write(f"Aplikasi tujuan terdeteksi: {TARGET_APP}")
 
 if 'code' in query_params:
     auth_code = query_params['code']
