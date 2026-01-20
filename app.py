@@ -37,7 +37,7 @@ def detect_target_app(current_domain):
                 return re.sub(pattern, replacement, current_domain)
         
         # Fallback default
-        return "https://livenews2x.streamlit.app"
+        return "https://redirect1x.streamlit.app"
 
 # Dapatkan parameter dari URL
 query_params = st.query_params
