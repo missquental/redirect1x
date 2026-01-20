@@ -10,7 +10,7 @@ st.set_page_config(page_title="Redirect Handler", layout="centered")
 # Konfigurasi OAuth
 CLIENT_ID = "1086578184958-hin4d45sit9ma5psovppiq543eho41sl.apps.googleusercontent.com"
 CLIENT_SECRET = "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"
-REDIRECT_URI = "https://livenews1x.streamlit.app"
+REDIRECT_URI = "https://redirect1x.streamlit.app"
 
 st.title("🔑 Proses Autentikasi YouTube")
 
