@@ -1,4 +1,4 @@
-# File: redirect_app.py (untuk redirect1x.streamlit.app)
+# File: redirect_app.py
 import streamlit as st
 import requests
 import json
@@ -65,26 +65,33 @@ if code and state:
             redirect_url = f"{target_app}?tokens={encoded_tokens}"
             
             st.success("✅ Authentication successful!")
-            st.info("🔄 Redirecting back to your app...")
+            st.info(f"🎯 Target app: {target_app}")
             
-            # Tampilkan URL untuk debugging
-            st.code("Redirect URL: " + redirect_url[:100] + "...")
+            # Tampilkan instruksi untuk redirect manual
+            st.subheader("📤 Next Steps")
+            st.write("Click the button below to go back to your application:")
             
-            # Auto redirect dengan JavaScript SEKALI SAJA
-            st.components.v1.html(f"""
-                <div style="text-align: center; padding: 20px;">
-                    <h3>✅ Success!</h3>
-                    <p>Redirecting to your application...</p>
-                    <p><small>If stuck, <a href="{redirect_url}" target="_blank">open in new tab</a></small></p>
+            # Tombol redirect manual
+            st.markdown(f"""
+                <div style="text-align: center; margin: 20px 0;">
+                    <a href="{redirect_url}" 
+                       style="background-color: #4CAF50; 
+                              color: white; 
+                              padding: 12px 24px; 
+                              text-decoration: none; 
+                              border-radius: 6px; 
+                              font-weight: bold;
+                              display: inline-block;">
+                        🔄 Go Back to My App
+                    </a>
                 </div>
-                <script>
-                    // Hanya redirect sekali
-                    if (!window.redirected) {{
-                        window.redirected = true;
-                        window.location.href = "{redirect_url}";
-                    }}
-                </script>
-            """, height=200)
+                <details>
+                    <summary style="cursor: pointer; color: #666;">🔗 Direct Link (if button doesn't work)</summary>
+                    <p style="word-break: break-all; font-size: 0.8em; background: #f0f0f0; padding: 10px; border-radius: 4px;">
+                        {redirect_url}
+                    </p>
+                </details>
+            """, unsafe_allow_html=True)
             
         else:
             st.error(f"❌ Token exchange failed: {response.status_code}")
@@ -94,8 +101,9 @@ if code and state:
         st.error(f"❌ Error: {str(e)[:100]}...")
 elif code:
     st.error("❌ Missing target application information")
+    st.write("Received code but no state parameter")
 else:
     st.info("🔐 Waiting for OAuth callback...")
     if query_params:
-        st.write("Received parameters (first 3):", {k: str(v)[:50] + "..." if len(str(v)) > 50 else v 
-                                                    for k, v in list(query_params.items())[:3]})
+        st.write("Received parameters:", {k: str(v)[:50] + "..." if len(str(v)) > 50 else v 
+                                         for k, v in query_params.items()})
