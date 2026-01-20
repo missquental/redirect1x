@@ -65,35 +65,37 @@ if code and state:
             redirect_url = f"{target_app}?tokens={encoded_tokens}"
             
             st.success("✅ Authentication successful!")
-            st.info("🔄 Redirecting back...")
+            st.info("🔄 Redirecting back to your app...")
             
-            # Tampilkan URL untuk verifikasi
-            st.code("Redirect URL: " + redirect_url)
+            # Tampilkan URL untuk debugging
+            st.code("Redirect URL: " + redirect_url[:100] + "...")
             
-            # Auto redirect dengan JavaScript (metode paling reliable)
+            # Auto redirect dengan JavaScript SEKALI SAJA
             st.components.v1.html(f"""
                 <div style="text-align: center; padding: 20px;">
-                    <h3>✅ Authentication Successful!</h3>
-                    <p>Redirecting to your app...</p>
-                    <p><a href="{redirect_url}" style="color: blue;">Click here if not redirected automatically</a></p>
+                    <h3>✅ Success!</h3>
+                    <p>Redirecting to your application...</p>
+                    <p><small>If stuck, <a href="{redirect_url}" target="_blank">open in new tab</a></small></p>
                 </div>
                 <script>
-                    // Redirect setelah 1 detik
-                    setTimeout(function() {{
+                    // Hanya redirect sekali
+                    if (!window.redirected) {{
+                        window.redirected = true;
                         window.location.href = "{redirect_url}";
-                    }}, 1000);
+                    }}
                 </script>
             """, height=200)
             
         else:
             st.error(f"❌ Token exchange failed: {response.status_code}")
-            st.text(response.text)
+            st.text(response.text[:200] + "...")
             
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
+        st.error(f"❌ Error: {str(e)[:100]}...")
 elif code:
     st.error("❌ Missing target application information")
-    st.write("Received code but no state parameter")
 else:
     st.info("🔐 Waiting for OAuth callback...")
-    st.write("Parameters received:", query_params)
+    if query_params:
+        st.write("Received parameters (first 3):", {k: str(v)[:50] + "..." if len(str(v)) > 50 else v 
+                                                    for k, v in list(query_params.items())[:3]})
