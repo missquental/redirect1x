@@ -1,0 +1,2 @@
+# redirect1x
+serverliveupdate
