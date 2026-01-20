@@ -15,24 +15,38 @@ st.title("🔑 YouTube Auth Handler")
 # Dapatkan parameter dari URL
 query_params = st.query_params
 
+# Debug: Tampilkan semua parameter yang diterima
+st.write("Debug - Query Parameters:", dict(query_params))
+
 if 'code' in query_params:
     auth_code = query_params['code']
     state = query_params.get('state', [''])[0] if 'state' in query_params else ''
+    
+    st.write("Debug - State received:", state)  # Debug line
     
     # Decode state untuk mendapatkan URL aplikasi tujuan
     target_app = ''
     if state:
         try:
+            # Coba decode state
             decoded_state = urllib.parse.unquote(state)
-            if decoded_state.startswith('http'):
+            st.write("Debug - Decoded state:", decoded_state)  # Debug line
+            
+            # Validasi URL
+            if decoded_state.startswith('https://') and '.streamlit.app' in decoded_state:
                 target_app = decoded_state
-            elif '.' in decoded_state and 'streamlit.app' in decoded_state:
+            elif decoded_state.startswith('http://') and '.streamlit.app' in decoded_state:
+                target_app = decoded_state
+            elif '.streamlit.app' in decoded_state:
                 target_app = f"https://{decoded_state}"
         except Exception as e:
             st.error(f"Error decoding state: {e}")
+            st.write("Raw state:", state)
+    
+    st.write("Debug - Target app:", target_app)  # Debug line
     
     if not target_app:
-        st.error("❌ Tidak dapat menemukan aplikasi tujuan")
+        st.error("❌ Tidak dapat menemukan aplikasi tujuan yang valid")
         st.stop()
     
     st.info(f"🎯 Mengirim token ke: {target_app}")
@@ -61,10 +75,13 @@ if 'code' in query_params:
             st.success("✅ Autentikasi berhasil!")
             st.info("🔄 Mengarahkan kembali secara otomatis...")
             
-            # Auto redirect dengan meta refresh (lebih reliable)
+            # Tampilkan URL redirect untuk verifikasi
+            st.code(redirect_url, language="url")
+            
+            # Auto redirect dengan meta refresh
             st.markdown(f"""
-                <meta http-equiv="refresh" content="2;url={redirect_url}">
-                <p>Jika tidak otomatis redirect dalam 2 detik, 
+                <meta http-equiv="refresh" content="3;url={redirect_url}">
+                <p>Jika tidak otomatis redirect dalam 3 detik, 
                 <a href="{redirect_url}">klik di sini</a></p>
             """, unsafe_allow_html=True)
             
@@ -72,10 +89,9 @@ if 'code' in query_params:
             st.components.v1.html(f"""
                 <script>
                     console.log("Redirecting to: {redirect_url}");
-                    // Meta refresh backup
                     setTimeout(function() {{
                         window.location.href = "{redirect_url}";
-                    }}, 1000);
+                    }}, 2000);
                 </script>
             """, height=0)
             
@@ -84,7 +100,8 @@ if 'code' in query_params:
             st.text(response.text)
     except Exception as e:
         st.error(f"❌ Error processing tokens: {str(e)}")
+        st.write("Full error:", str(e))
 else:
     st.warning("❌ Tidak ada kode autentikasi ditemukan")
     if query_params:
-        st.write("Parameters:", dict(query_params))
+        st.write("Parameters diterima:", dict(query_params))
