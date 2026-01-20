@@ -43,7 +43,7 @@ def detect_target_app(current_domain):
 query_params = st.query_params
 
 # Deteksi aplikasi tujuan
-current_domain = "livenews1x.streamlit.app"  # Domain saat ini
+current_domain = "redirect1x.streamlit.app"  # Domain saat ini
 TARGET_APP = f"https://{detect_target_app(current_domain)}"
 
 st.write(f"Aplikasi tujuan terdeteksi: {TARGET_APP}")
