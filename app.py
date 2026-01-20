@@ -45,7 +45,8 @@ if 'code' in query_params:
             target_app = user_target if user_target.startswith('http') else f"https://{user_target}"
             st.session_state['last_target'] = target_app
     
-    if target_app:
+    # Validasi target_app sebelum digunakan
+    if target_app and target_app.startswith('http'):
         st.info("🔄 Memproses autentikasi...")
         
         try:
@@ -72,14 +73,18 @@ if 'code' in query_params:
                 redirect_url = f"{target_app}?tokens={encoded_tokens}"
                 
                 st.success("✅ Sukses! Mengarahkan kembali...")
-                st.markdown(f"[➡️ Klik jika tidak otomatis redirect]({redirect_url})")
+                st.markdown(f"### [➡️ Klik jika tidak otomatis redirect]({redirect_url})")
                 
-                # Auto redirect
+                # Auto redirect dengan JavaScript yang lebih aman
                 st.components.v1.html(f"""
+                    <div style="text-align: center; margin: 20px;">
+                        <p>Redirecting...</p>
+                        <button onclick="window.location.href='{redirect_url}'">Klik jika tidak otomatis redirect</button>
+                    </div>
                     <script>
                         setTimeout(function() {{
                             window.location.href = "{redirect_url}";
-                        }}, 2000);
+                        }}, 3000);
                     </script>
                 """)
             else:
@@ -87,9 +92,17 @@ if 'code' in query_params:
         except Exception as e:
             st.error(f"❌ Exception: {str(e)}")
     else:
-        st.error("❌ Tidak dapat menentukan aplikasi tujuan")
+        st.error("❌ URL aplikasi tujuan tidak valid. Harus dimulai dengan https://")
+        st.write("Target app yang ditemukan:", target_app)
 else:
     st.warning("❌ Tidak ada kode autentikasi. Silakan autentikasi dari aplikasi utama.")
     
     # Debug info
     st.write("Query Params diterima:", dict(query_params))
+    
+    # Tampilkan form debug untuk testing
+    with st.expander("🔧 Debug Form"):
+        debug_url = st.text_input("Test Redirect URL", "https://serverliveupdate12.streamlit.app")
+        if st.button("Test Redirect"):
+            test_redirect_url = f"{debug_url}?tokens=test"
+            st.markdown(f"[Test Redirect]({test_redirect_url})")
