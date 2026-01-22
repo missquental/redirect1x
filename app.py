@@ -52,61 +52,40 @@ if code:
         # Deteksi aplikasi utama secara otomatis
         target_app = detect_main_app()
         
-        # Exchange code for tokens
-        token_data = {
-            'client_id': CLIENT_ID,
-            'client_secret': CLIENT_SECRET,
-            'code': code,
-            'grant_type': 'authorization_code',
-            'redirect_uri': REDIRECT_URI
-        }
+        # Buat URL redirect dengan code sebagai parameter
+        redirect_url = f"{target_app}?code={code}"
         
-        with st.spinner("🔄 Processing authentication..."):
-            response = requests.post('https://oauth2.googleapis.com/token', data=token_data)
+        st.success("✅ Authentication successful!")
+        st.info(f"🎯 Redirecting to: {target_app}")
         
-        if response.status_code == 200:
-            tokens = response.json()
-            
-            # Encode tokens dan buat URL redirect
-            tokens_json = json.dumps(tokens)
-            encoded_tokens = urllib.parse.quote(tokens_json)
-            redirect_url = f"{target_app}?tokens={encoded_tokens}"
-            
-            st.success("✅ Authentication successful!")
-            st.info(f"🎯 Redirecting to: {target_app}")
-            
-            # Redirect otomatis dalam 2 detik
-            st.markdown(f"""
-                <div style="text-align: center; margin: 20px 0;">
-                    <p>Redirecting to main app in 2 seconds...</p>
-                    <meta http-equiv="refresh" content="2; url={redirect_url}">
-                    <a href="{redirect_url}" 
-                       style="background-color: #4CAF50; 
-                              color: white; 
-                              padding: 12px 24px; 
-                              text-decoration: none; 
-                              border-radius: 6px; 
-                              font-weight: bold;
-                              display: inline-block;
-                              margin-top: 10px;">
-                        🔄 Go to Main App Now
-                    </a>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            # Auto-redirect JavaScript fallback
-            st.markdown(f"""
-                <script>
-                    setTimeout(function(){{
-                        window.location.href = "{redirect_url}";
-                    }}, 2000);
-                </script>
-            """, unsafe_allow_html=True)
-            
-        else:
-            st.error(f"❌ Token exchange failed: {response.status_code}")
-            st.text(response.text[:200] + "...")
-            
+        # Redirect otomatis dalam 2 detik
+        st.markdown(f"""
+            <div style="text-align: center; margin: 20px 0;">
+                <p>Redirecting to main app in 2 seconds...</p>
+                <meta http-equiv="refresh" content="2; url={redirect_url}">
+                <a href="{redirect_url}" 
+                   style="background-color: #4CAF50; 
+                          color: white; 
+                          padding: 12px 24px; 
+                          text-decoration: none; 
+                          border-radius: 6px; 
+                          font-weight: bold;
+                          display: inline-block;
+                          margin-top: 10px;">
+                    🔄 Go to Main App Now
+                </a>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Auto-redirect JavaScript fallback
+        st.markdown(f"""
+            <script>
+                setTimeout(function(){{
+                    window.location.href = "{redirect_url}";
+                }}, 2000);
+            </script>
+        """, unsafe_allow_html=True)
+        
     except Exception as e:
         st.error(f"❌ Error: {str(e)[:100]}...")
 else:
