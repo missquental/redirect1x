@@ -1,4 +1,4 @@
-# File: redirect_app.py (untuk redirect1x.streamlit.app)
+# File: redirect_app.py
 import streamlit as st
 import requests
 import json
@@ -92,9 +92,6 @@ if code and state:
                     </p>
                 </details>
             """, unsafe_allow_html=True)
-            
-            # Simpan URL di session untuk debugging jika diperlukan
-            st.session_state['last_redirect_url'] = redirect_url
             
         else:
             st.error(f"❌ Token exchange failed: {response.status_code}")
