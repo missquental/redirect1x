@@ -15,7 +15,7 @@ CLIENT_SECRET = "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"
 REDIRECT_URI = "https://redirect1x.streamlit.app"
 
 # Pola untuk mendeteksi aplikasi Streamlit
-STREAMLIT_PATTERN = r'https?://.*\.streamlit\.app.*'
+STREAMLIT_PATTERN = r'https?://[^\s/$.?#].[^\s]*\.streamlit\.app(?:/[^\s]*)?'
 
 # Dapatkan parameter dari URL
 query_params = dict(st.query_params)
@@ -35,13 +35,41 @@ def detect_main_app():
     state = get_param_value(query_params, 'state')
     if state:
         try:
+            # Decode state yang mungkin di-encode
             decoded_state = urllib.parse.unquote(state)
+            # Cek apakah state mengandung URL streamlit yang valid
             if re.match(STREAMLIT_PATTERN, decoded_state):
-                return decoded_state if decoded_state.startswith(('http://', 'https://')) else f"https://{decoded_state}"
+                # Pastikan URL memiliki protokol
+                if decoded_state.startswith(('http://', 'https://')):
+                    return decoded_state
+                else:
+                    return f"https://{decoded_state}"
+        except Exception as e:
+            st.warning(f"State parsing error: {e}")
+    
+    # Coba dari referer/referrer header (jika tersedia)
+    try:
+        referer = st.context.headers.get('Referer') or st.context.headers.get('referer')
+        if referer and re.match(STREAMLIT_PATTERN, referer):
+            if referer.startswith(('http://', 'https://')):
+                return referer
+    except:
+        pass
+    
+    # Jika tidak ada state yang valid, cek referer dari query params
+    referer_param = get_param_value(query_params, 'referer')
+    if referer_param:
+        try:
+            decoded_referer = urllib.parse.unquote(referer_param)
+            if re.match(STREAMLIT_PATTERN, decoded_referer):
+                if decoded_referer.startswith(('http://', 'https://')):
+                    return decoded_referer
+                else:
+                    return f"https://{decoded_referer}"
         except:
             pass
     
-    # Jika tidak ada state yang valid, gunakan default
+    # Fallback ke default
     return "https://serverliveupdate10.streamlit.app/"
 
 code = get_param_value(query_params, 'code')
@@ -98,3 +126,13 @@ else:
     st.subheader("🔍 Debug Info")
     detected_app = detect_main_app()
     st.write(f"Detected target app: {detected_app}")
+    
+    # Debug info tambahan
+    state_debug = get_param_value(query_params, 'state')
+    if state_debug:
+        st.write(f"State parameter: {state_debug}")
+        try:
+            decoded_state = urllib.parse.unquote(state_debug)
+            st.write(f"Decoded state: {decoded_state}")
+        except:
+            st.write("Cannot decode state")
