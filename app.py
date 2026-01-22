@@ -3,6 +3,7 @@ import streamlit as st
 import requests
 import json
 import urllib.parse
+import time
 
 st.set_page_config(page_title="YouTube Auth Redirect", layout="centered")
 st.title("🔑 YouTube Auth Handler")
@@ -65,15 +66,13 @@ if code and state:
             redirect_url = f"{target_app}?tokens={encoded_tokens}"
             
             st.success("✅ Authentication successful!")
-            st.info(f"🎯 Target app: {target_app}")
+            st.info(f"🎯 Redirecting to: {target_app}")
             
-            # Tampilkan instruksi untuk redirect manual
-            st.subheader("📤 Next Steps")
-            st.write("Click the button below to go back to your application:")
-            
-            # Tombol redirect manual
+            # Redirect otomatis dalam 3 detik
             st.markdown(f"""
                 <div style="text-align: center; margin: 20px 0;">
+                    <p>Redirecting in 3 seconds...</p>
+                    <meta http-equiv="refresh" content="3; url={redirect_url}">
                     <a href="{redirect_url}" 
                        style="background-color: #4CAF50; 
                               color: white; 
@@ -81,16 +80,20 @@ if code and state:
                               text-decoration: none; 
                               border-radius: 6px; 
                               font-weight: bold;
-                              display: inline-block;">
-                        🔄 Go Back to My App
+                              display: inline-block;
+                              margin-top: 10px;">
+                        🔄 Go Now
                     </a>
                 </div>
-                <details>
-                    <summary style="cursor: pointer; color: #666;">🔗 Direct Link (if button doesn't work)</summary>
-                    <p style="word-break: break-all; font-size: 0.8em; background: #f0f0f0; padding: 10px; border-radius: 4px;">
-                        {redirect_url}
-                    </p>
-                </details>
+            """, unsafe_allow_html=True)
+            
+            # Auto-redirect JavaScript fallback
+            st.markdown(f"""
+                <script>
+                    setTimeout(function(){{
+                        window.location.href = "{redirect_url}";
+                    }}, 3000);
+                </script>
             """, unsafe_allow_html=True)
             
         else:
