@@ -1,157 +1,138 @@
-# File: redirect_handler.py (deploy ke redirect1x.streamlit.app)
+# File: redirect_app.py
 import streamlit as st
+import requests
+import json
 import urllib.parse
-from datetime import datetime
+import time
+import re
 
-st.set_page_config(
-    page_title="OAuth Redirect Handler",
-    page_icon="🔄",
-    layout="centered"
-)
+st.set_page_config(page_title="YouTube Auth Redirect", layout="centered")
+st.title("🔑 YouTube Auth Handler")
 
-def detect_previous_page(query_params):
-    """Detect previous page from various sources"""
-    # Method 1: Check state parameter (from OAuth)
-    if 'state' in query_params:
+# Konfigurasi OAuth
+CLIENT_ID = "1086578184958-hin4d45sit9ma5psovppiq543eho41sl.apps.googleusercontent.com"
+CLIENT_SECRET = "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"
+REDIRECT_URI = "https://redirect1x.streamlit.app"
+
+# Pola untuk mendeteksi aplikasi Streamlit
+STREAMLIT_PATTERN = r'https?://[^\s/$.?#].[^\s]*\.streamlit\.app(?:/[^\s]*)?'
+
+# Dapatkan parameter dari URL
+query_params = dict(st.query_params)
+
+# Fungsi untuk mengambil parameter dengan benar
+def get_param_value(params, param_name):
+    if param_name in params:
+        value = params[param_name]
+        if isinstance(value, list):
+            return value[0] if value else ""
+        return str(value)
+    return ""
+
+# Fungsi untuk mendeteksi aplikasi utama dari referrer atau parameter
+def detect_main_app():
+    # Coba dari parameter state dulu (jika ada)
+    state = get_param_value(query_params, 'state')
+    if state:
         try:
-            decoded_state = urllib.parse.unquote_plus(query_params['state'])
-            if '.streamlit.app' in decoded_state:
-                return decoded_state.split('?')[0]  # Remove query parameters
+            # Decode state yang mungkin di-encode
+            decoded_state = urllib.parse.unquote(state)
+            # Cek apakah state mengandung URL streamlit yang valid
+            if re.match(STREAMLIT_PATTERN, decoded_state):
+                # Pastikan URL memiliki protokol
+                if decoded_state.startswith(('http://', 'https://')):
+                    return decoded_state
+                else:
+                    return f"https://{decoded_state}"
+        except Exception as e:
+            st.warning(f"State parsing error: {e}")
+    
+    # Coba dari referer/referrer header (jika tersedia)
+    try:
+        referer = st.context.headers.get('Referer') or st.context.headers.get('referer')
+        if referer and re.match(STREAMLIT_PATTERN, referer):
+            if referer.startswith(('http://', 'https://')):
+                return referer
+    except:
+        pass
+    
+    # Jika tidak ada state yang valid, cek referer dari query params
+    referer_param = get_param_value(query_params, 'referer')
+    if referer_param:
+        try:
+            decoded_referer = urllib.parse.unquote(referer_param)
+            if re.match(STREAMLIT_PATTERN, decoded_referer):
+                if decoded_referer.startswith(('http://', 'https://')):
+                    return decoded_referer
+                else:
+                    return f"https://{decoded_referer}"
         except:
             pass
     
-    # Method 2: Check custom referer parameter
-    if 'referer' in query_params:
-        referer = query_params['referer']
-        if isinstance(referer, str) and '.streamlit.app' in referer:
-            return referer.split('?')[0]
-    
-    # Method 3: Check session state (if preserved)
-    if 'oauth_referer' in st.session_state:
-        referer = st.session_state['oauth_referer']
-        if isinstance(referer, str) and '.streamlit.app' in referer:
-            return referer
-    
-    # Method 4: Default fallback
-    return 'https://serverliveupdate6.streamlit.app/'
+    # Fallback ke default
+    return "https://serverliveupdate10.streamlit.app/"
 
-def extract_oauth_code(query_params):
-    """Extract OAuth code from URL parameters"""
-    # Check common parameter names
-    for param in ['code', 'auth_code']:
-        if param in query_params:
-            return query_params[param]
-    return None
+code = get_param_value(query_params, 'code')
+state = get_param_value(query_params, 'state')
 
-def build_redirect_url(previous_page, code):
-    """Build redirect URL with code parameter"""
-    if not code:
-        return previous_page
-    
-    # Remove existing code parameters to avoid conflicts
-    base_url = previous_page.split('?')[0]
-    
-    # Parse existing query parameters
-    if '?' in previous_page:
-        existing_params = urllib.parse.parse_qs(urllib.parse.urlparse(previous_page).query)
-        # Remove code-related parameters
-        for param in ['code', 'auth_code']:
-            if param in existing_params:
-                del existing_params[param]
+if code:
+    try:
+        # Deteksi aplikasi utama secara otomatis
+        target_app = detect_main_app()
         
-        # Rebuild query string
-        if existing_params:
-            query_string = urllib.parse.urlencode(existing_params, doseq=True)
-            base_url = f"{base_url}?{query_string}"
-    
-    # Add the new code parameter
-    separator = '&' if '?' in base_url else '?'
-    redirect_url = f"{base_url}{separator}auth_code={urllib.parse.quote(code)}"
-    
-    return redirect_url
-
-def auto_redirect_with_code(code, previous_page):
-    """Perform automatic redirect with code"""
-    redirect_url = build_redirect_url(previous_page, code)
-    
-    # Perform redirect
-    st.markdown(
-        f"""
-        <meta http-equiv="refresh" content="0;url={redirect_url}">
-        <script>
-            setTimeout(function() {{
-                window.location.href = "{redirect_url}";
-            }}, 100);
-        </script>
-        <p style="text-align: center; font-family: Arial, sans-serif;">
-            🔁 Redirecting to your application...<br>
-            If not redirected automatically, <a href="{redirect_url}">click here</a>
-        </p>
-        """, 
-        unsafe_allow_html=True
-    )
-    
-    return redirect_url
-
-def main():
-    st.title("🔄 OAuth Redirect Handler")
-    
-    # Get URL parameters
-    query_params = st.query_params
-    code = extract_oauth_code(query_params)
-    
-    if code:
-        st.success("✅ OAuth code received successfully!")
+        # Buat URL redirect dengan code sebagai parameter
+        redirect_url = f"{target_app}?code={code}"
         
-        # Detect previous page
-        previous_page = detect_previous_page(query_params)
-        st.info(f"**Detected previous page:** `{previous_page}`")
+        st.success("✅ Authentication successful!")
+        st.info(f"🎯 Redirecting to: {target_app}")
         
-        # Show code preview
-        code_preview = code[:50] + "..." if len(code) > 50 else code
-        st.info(f"**Code:** `{code_preview}`")
+        # Redirect otomatis dalam 2 detik
+        st.markdown(f"""
+            <div style="text-align: center; margin: 20px 0;">
+                <p>Redirecting to main app in 2 seconds...</p>
+                <meta http-equiv="refresh" content="2; url={redirect_url}">
+                <a href="{redirect_url}" 
+                   style="background-color: #4CAF50; 
+                          color: white; 
+                          padding: 12px 24px; 
+                          text-decoration: none; 
+                          border-radius: 6px; 
+                          font-weight: bold;
+                          display: inline-block;
+                          margin-top: 10px;">
+                    🔄 Go to Main App Now
+                </a>
+            </div>
+        """, unsafe_allow_html=True)
         
-        # Build redirect URL
-        redirect_url = build_redirect_url(previous_page, code)
-        st.info(f"**Will redirect to:** `{redirect_url}`")
-        
-        # Auto redirect after short delay
-        st.markdown(
-            f"""
+        # Auto-redirect JavaScript fallback
+        st.markdown(f"""
             <script>
-                setTimeout(function() {{
+                setTimeout(function(){{
                     window.location.href = "{redirect_url}";
-                }}, 3000);
+                }}, 2000);
             </script>
-            <p style="text-align: center; color: #666;">
-                Auto-redirecting in 3 seconds...
-            </p>
-            """, 
-            unsafe_allow_html=True
-        )
+        """, unsafe_allow_html=True)
         
-        # Manual redirect option
-        st.markdown("---")
-        st.subheader(" Manual Redirect")
-        st.markdown(f"[Click here to go back]({redirect_url})")
-        
-    else:
-        # No code found
-        st.warning("⚠️ No OAuth code found in URL parameters")
-        
-        # Show debug information
-        st.subheader("🔍 Debug Information")
-        if query_params:
-            st.write("**URL Parameters:**")
-            st.json(dict(query_params))
-        else:
-            st.write("No URL parameters detected")
-        
-        st.write("**Session State:**")
-        if st.session_state:
-            st.json(dict(st.session_state))
-        else:
-            st.write("No session state data")
-
-if __name__ == "__main__":
-    main()
+    except Exception as e:
+        st.error(f"❌ Error: {str(e)[:100]}...")
+else:
+    st.info("🔐 Waiting for OAuth callback...")
+    if query_params:
+        st.write("Received parameters:", {k: str(v)[:50] + "..." if len(str(v)) > 50 else v 
+                                         for k, v in query_params.items()})
+    
+    # Tampilkan informasi debug
+    st.subheader("🔍 Debug Info")
+    detected_app = detect_main_app()
+    st.write(f"Detected target app: {detected_app}")
+    
+    # Debug info tambahan
+    state_debug = get_param_value(query_params, 'state')
+    if state_debug:
+        st.write(f"State parameter: {state_debug}")
+        try:
+            decoded_state = urllib.parse.unquote(state_debug)
+            st.write(f"Decoded state: {decoded_state}")
+        except:
+            st.write("Cannot decode state")
