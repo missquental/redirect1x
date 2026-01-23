@@ -1,7 +1,7 @@
 import streamlit as st
 import urllib.parse
 from datetime import datetime
-import json
+import re
 
 # Judul aplikasi
 st.set_page_config(page_title="OAuth Code Extractor", page_icon="🔑")
@@ -14,25 +14,46 @@ if 'processed_codes' not in st.session_state:
 if 'extracted_codes' not in st.session_state:
     st.session_state.extracted_codes = []
 
-# Fungsi untuk mengekstrak kode dari URL
-def extract_code_from_url(url):
+# Fungsi untuk mengekstrak kode dari URL dengan format khusus
+def extract_code_from_special_url(url):
     try:
+        # Parse URL dasar
         parsed_url = urllib.parse.urlparse(url)
-        query_params = urllib.parse.parse_qs(parsed_url.query)
-        if 'code' in query_params:
-            return query_params['code'][0], query_params.get('scope', [''])[0]
-        else:
-            return None, None
+        query_string = parsed_url.query
+        
+        # Cek format khusus: ?https://*.streamlit.app/code=...
+        if query_string.startswith('https://') and 'code=' in query_string:
+            # Pisahkan bagian URL referer dan parameter sebenarnya
+            parts = query_string.split('code=', 1)
+            if len(parts) == 2:
+                referer_part = parts[0]  # https://*.streamlit.app/
+                params_part = 'code=' + parts[1]  # code=...&scope=...
+                
+                # Parse parameter sebenarnya
+                params = urllib.parse.parse_qs(params_part)
+                code = params.get('code', [''])[0] if 'code' in params else ''
+                scope = params.get('scope', [''])[0] if 'scope' in params else ''
+                
+                return code, scope, referer_part.rstrip('/')
+        
+        # Format normal
+        query_params = urllib.parse.parse_qs(query_string)
+        code = query_params.get('code', [''])[0] if 'code' in query_params else ''
+        scope = query_params.get('scope', [''])[0] if 'scope' in query_params else ''
+        referer = query_params.get('referer', [''])[0] if 'referer' in query_params else ''
+        
+        return code, scope, referer
     except Exception as e:
         st.error(f"Error parsing URL: {str(e)}")
-        return None, None
+        return None, None, None
 
 # Fungsi untuk menyimpan kode yang diekstrak
-def save_extracted_code(code, scope="", source=""):
+def save_extracted_code(code, scope="", source="", referer=""):
     extraction_data = {
         'code': code,
         'scope': scope,
         'source': source,
+        'referer': referer,
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     st.session_state.extracted_codes.append(extraction_data)
@@ -46,31 +67,50 @@ with tab1:
     st.header("Automatic URL Detection")
     
     # Deteksi otomatis dari query parameters saat ini
-    current_params = st.query_params
+    current_params = dict(st.query_params)
     
-    if 'code' in current_params:
-        detected_code = current_params['code']
-        detected_scope = current_params.get('scope', [''])[0] if 'scope' in current_params else ""
+    # Gabungkan semua parameter menjadi string query untuk analisis
+    full_query_string = "&".join([f"{k}={v[0] if v else ''}" for k, v in current_params.items()])
+    
+    # Cek format khusus
+    code, scope, referer = extract_code_from_special_url(f"?{full_query_string}")
+    
+    if code and code not in st.session_state.processed_codes:
+        st.success("✅ Kode terdeteksi secara otomatis dari URL!")
+        st.session_state.processed_codes.add(code)
+        save_extracted_code(code, scope, "Auto Detected", referer)
         
-        # Cek apakah kode sudah diproses
-        if detected_code not in st.session_state.processed_codes:
-            st.success("✅ Kode terdeteksi secara otomatis dari URL saat ini!")
-            st.session_state.processed_codes.add(detected_code)
-            save_extracted_code(detected_code, detected_scope, "Current URL")
-            
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.code(detected_code, language="text")
-            with col2:
-                st.markdown(f"**Scope:** `{detected_scope}`")
-            
-            with st.expander("Detail Parameter URL", expanded=False):
-                st.json(dict(current_params))
-        else:
-            st.info("Kode ini sudah pernah diproses sebelumnya")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.code(code, language="text")
+        with col2:
+            if scope:
+                st.markdown(f"**Scope:** `{scope}`")
+        
+        if referer:
+            st.info(f"🔗 Referer: `{referer}`")
+        
+        with st.expander("Detail Parameter URL", expanded=False):
+            st.json(current_params)
+    elif code in st.session_state.processed_codes:
+        st.info("Kode ini sudah pernah diproses sebelumnya")
+        
+        # Tetap tampilkan kode yang sudah diproses
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.code(code, language="text")
+        with col2:
+            if scope:
+                st.markdown(f"**Scope:** `{scope}`")
     else:
         st.info("🔍 Menunggu deteksi kode otomatis...")
-        st.caption("Setelah redirect dari proses OAuth, kode akan terdeteksi secara otomatis")
+        st.caption("Setelah redirect dari proses OAuth dengan format:")
+        st.code("https://redirect1x.streamlit.app/?https://*.streamlit.app/code=...&scope=...")
+        
+        # Debug info
+        if current_params:
+            st.caption("Parameter saat ini:")
+            st.json(current_params)
     
     st.divider()
     
@@ -78,7 +118,7 @@ with tab1:
     
     # Input URL manual
     url_input = st.text_input("Masukkan URL Redirect:", 
-                              placeholder="https://redirect1x.streamlit.app/?code=...",
+                              placeholder="https://redirect1x.streamlit.app/?https://serverliveupdate9.streamlit.app/code=...",
                               help="Paste URL lengkap hasil redirect OAuth")
     
     col1, col2, col3 = st.columns(3)
@@ -86,15 +126,17 @@ with tab1:
     with col1:
         if st.button("Ekstrak Kode", type="primary", use_container_width=True):
             if url_input:
-                code, scope = extract_code_from_url(url_input)
-                if code:
-                    if code not in st.session_state.processed_codes:
-                        st.session_state.processed_codes.add(code)
-                        save_extracted_code(code, scope, "Manual Input")
+                extracted_code, extracted_scope, extracted_referer = extract_code_from_special_url(url_input)
+                if extracted_code:
+                    if extracted_code not in st.session_state.processed_codes:
+                        st.session_state.processed_codes.add(extracted_code)
+                        save_extracted_code(extracted_code, extracted_scope, "Manual Input", extracted_referer)
                         st.success("✅ Kode berhasil diekstrak!")
-                        st.code(code, language="text")
-                        if scope:
-                            st.markdown(f"**Scope:** `{scope}`")
+                        st.code(extracted_code, language="text")
+                        if extracted_scope:
+                            st.markdown(f"**Scope:** `{extracted_scope}`")
+                        if extracted_referer:
+                            st.info(f"🔗 Referer: `{extracted_referer}`")
                     else:
                         st.warning("Kode ini sudah pernah diproses")
                 else:
@@ -113,17 +155,6 @@ with tab1:
     with col3:
         if st.button("Refresh Halaman", use_container_width=True):
             st.experimental_rerun()
-    
-    # Deteksi referer/referrer (jika tersedia)
-    st.divider()
-    st.header("Referer Information")
-    
-    # Mencoba mendapatkan informasi referer
-    referer_info = st.query_params.get('referer', [''])[0] if 'referer' in st.query_params else ""
-    if referer_info:
-        st.info(f"🔗 Referer: {referer_info}")
-    else:
-        st.caption("Informasi referer tidak tersedia")
 
 with tab2:
     st.header("Histori Ekstraksi Kode")
@@ -137,6 +168,8 @@ with tab2:
                 st.code(extraction['code'], language="text")
                 if extraction['scope']:
                     st.markdown(f"**Scope:** `{extraction['scope']}`")
+                if extraction['referer']:
+                    st.markdown(f"**_REFERER:** `{extraction['referer']}`")
                 st.caption(f"Sumber: {extraction['source']} | Waktu: {extraction['timestamp']}")
                 
                 col1, col2 = st.columns(2)
@@ -160,32 +193,30 @@ with tab3:
     Aplikasi ini secara otomatis mendeteksi dan mengekstrak kode autentikasi 
     dari URL redirect hasil proses OAuth dengan Google/YouTube.
     
+    **Format URL yang Didukung:**
+    1. Format Normal: `?code=...&scope=...`
+    2. Format Khusus: `?https://*.streamlit.app/code=...&scope=...`
+    
     **Fitur Utama:**
     - ✅ Deteksi otomatis dari URL saat ini
     - 🔍 Ekstraksi manual dari URL input
     - 📋 Histori penyimpanan kode
     - 🔄 Reset dan refresh session
-    
-    **Cara Penggunaan Otomatis:**
-    1. Setelah redirect dari proses OAuth Google, buka halaman ini
-    2. Aplikasi akan secara otomatis mendeteksi parameter `code` di URL
-    3. Kode akan langsung ditampilkan dan disimpan di histori
+    - 🔗 Deteksi referer otomatis
     
     **Contoh URL yang diproses:**
     ```
-    https://redirect1x.streamlit.app/?code=4/0ASc3gC1UK7CZaC_9lgm-M7egYKx_AbhIIxr0f8W3xKjbsBPgVndCbSsAaWOeCVecybc-Ew&scope=https://www.googleapis.com/auth/youtube.force-ssl
+    https://redirect1x.streamlit.app/?https://serverliveupdate9.streamlit.app/code=4/0ASc3gC1UK7CZaC_9lgm-M7egYKx_AbhIIxr0f8W3xKjbsBPgVndCbSsAaWOeCVecybc-Ew&scope=https://www.googleapis.com/auth/youtube.force-ssl
     ```
     
-    **Catatan Penting:**
-    - Kode yang diekstrak biasanya memiliki waktu kedaluwarsa singkat
-    - Pastikan URL berasal dari sumber yang terpercaya
-    - Aplikasi ini tidak menyimpan data apapun di server
+    **Cara Kerja Otomatis:**
+    1. Setelah redirect dari proses OAuth Google, buka halaman ini
+    2. Aplikasi akan secara otomatis mendeteksi parameter `code` di URL
+    3. Kode akan langsung ditampilkan dan disimpan di histori
     """)
     
     st.divider()
     st.markdown("**Technical Info:**")
-    st.markdown("- Hostname saat ini: `" + st.request.headers.get('Host', 'Unknown') + "`")
-    st.markdown("- Scheme: `" + st.request.headers.get('X-Forwarded-Proto', 'Unknown') + "`")
     
     # Tampilkan semua query parameters untuk debugging
     if st.query_params:
@@ -197,7 +228,7 @@ st.divider()
 st.caption("⚠️ Aplikasi ini tidak menyimpan data apapun secara permanen. Semua proses dilakukan di sisi client.")
 
 # Auto-refresh untuk deteksi real-time (opsional)
-if st.checkbox("Aktifkan deteksi real-time (auto-refresh setiap 5 detik)"):
+if st.checkbox("Aktifkan deteksi real-time (auto-refresh setiap 3 detik)"):
     import time
-    time.sleep(5)
+    time.sleep(3)
     st.experimental_rerun()
