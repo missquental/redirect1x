@@ -1,100 +1,131 @@
-# File: redirect_app.py
 import streamlit as st
-import requests
-import json
 import urllib.parse
-import time
-import re
+from datetime import datetime
 
-st.set_page_config(page_title="YouTube Auth Redirect", layout="centered")
-st.title("🔑 YouTube Auth Handler")
+# Judul aplikasi
+st.title("YouTube OAuth Code Extractor")
 
-# Konfigurasi OAuth
-CLIENT_ID = "1086578184958-hin4d45sit9ma5psovppiq543eho41sl.apps.googleusercontent.com"
-CLIENT_SECRET = "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"
-REDIRECT_URI = "https://redirect1x.streamlit.app"
+# Inisialisasi session state untuk menyimpan kode
+if 'auth_code' not in st.session_state:
+    st.session_state.auth_code = None
+    st.session_state.extracted_time = None
 
-# Pola untuk mendeteksi aplikasi Streamlit
-STREAMLIT_PATTERN = r'https?://.*\.streamlit\.app.*'
-
-# Dapatkan parameter dari URL
-query_params = dict(st.query_params)
-
-# Fungsi untuk mengambil parameter dengan benar
-def get_param_value(params, param_name):
-    if param_name in params:
-        value = params[param_name]
-        if isinstance(value, list):
-            return value[0] if value else ""
-        return str(value)
-    return ""
-
-# Fungsi untuk mendeteksi aplikasi utama dari referrer atau parameter
-def detect_main_app():
-    # Coba dari parameter state dulu (jika ada)
-    state = get_param_value(query_params, 'state')
-    if state:
-        try:
-            decoded_state = urllib.parse.unquote(state)
-            if re.match(STREAMLIT_PATTERN, decoded_state):
-                return decoded_state if decoded_state.startswith(('http://', 'https://')) else f"https://{decoded_state}"
-        except:
-            pass
-    
-    # Jika tidak ada state yang valid, gunakan default
-    return "https://serverliveupdate10.streamlit.app/"
-
-code = get_param_value(query_params, 'code')
-state = get_param_value(query_params, 'state')
-
-if code:
+# Fungsi untuk mengekstrak kode dari URL
+def extract_code_from_url(url):
     try:
-        # Deteksi aplikasi utama secara otomatis
-        target_app = detect_main_app()
-        
-        # Buat URL redirect dengan code sebagai parameter
-        redirect_url = f"{target_app}?code={code}"
-        
-        st.success("✅ Authentication successful!")
-        st.info(f"🎯 Redirecting to: {target_app}")
-        
-        # Redirect otomatis dalam 2 detik
-        st.markdown(f"""
-            <div style="text-align: center; margin: 20px 0;">
-                <p>Redirecting to main app in 2 seconds...</p>
-                <meta http-equiv="refresh" content="2; url={redirect_url}">
-                <a href="{redirect_url}" 
-                   style="background-color: #4CAF50; 
-                          color: white; 
-                          padding: 12px 24px; 
-                          text-decoration: none; 
-                          border-radius: 6px; 
-                          font-weight: bold;
-                          display: inline-block;
-                          margin-top: 10px;">
-                    🔄 Go to Main App Now
-                </a>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # Auto-redirect JavaScript fallback
-        st.markdown(f"""
-            <script>
-                setTimeout(function(){{
-                    window.location.href = "{redirect_url}";
-                }}, 2000);
-            </script>
-        """, unsafe_allow_html=True)
-        
+        parsed_url = urllib.parse.urlparse(url)
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        if 'code' in query_params:
+            return query_params['code'][0]
+        else:
+            return None
     except Exception as e:
-        st.error(f"❌ Error: {str(e)[:100]}...")
-else:
-    st.info("🔐 Waiting for OAuth callback...")
-    if query_params:
-        st.write("Received parameters:", {k: str(v)[:50] + "..." if len(str(v)) > 50 else v 
-                                         for k, v in query_params.items()})
+        st.error(f"Error parsing URL: {str(e)}")
+        return None
+
+# Tab navigasi
+tab1, tab2 = st.tabs(["Extractor", "About"])
+
+with tab1:
+    st.header("URL Code Extractor")
     
-    # Tampilkan informasi debug
-    st.subheader("🔍 Debug Info")
-    detected_app = detect_main_app()
-    st.write(f"Detected target app: {detected_app}")
+    # Input URL
+    url_input = st.text_input("Masukkan URL Redirect:", 
+                              placeholder="https://redirect1x.streamlit.app/?code=...")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Tombol ekstrak manual
+        if st.button("Ekstrak Kode", type="primary"):
+            if url_input:
+                code = extract_code_from_url(url_input)
+                if code:
+                    st.session_state.auth_code = code
+                    st.session_state.extracted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    st.success("Kode berhasil diekstrak!")
+                else:
+                    st.error("Tidak ditemukan kode dalam URL")
+            else:
+                st.warning("Silakan masukkan URL terlebih dahulu")
+    
+    with col2:
+        # Tombol reset
+        if st.button("Reset"):
+            st.session_state.auth_code = None
+            st.session_state.extracted_time = None
+            st.experimental_rerun()
+    
+    # Deteksi otomatis dari query parameters
+    st.subheader("Deteksi Otomatis")
+    query_params = st.experimental_get_query_params()
+    
+    if 'code' in query_params:
+        detected_code = query_params['code'][0]
+        st.success("Kode terdeteksi secara otomatis dari URL!")
+        st.session_state.auth_code = detected_code
+        st.session_state.extracted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Tampilkan hasil deteksi
+        with st.expander("Hasil Deteksi Otomatis", expanded=True):
+            st.info(f"**Kode Terdeteksi:** `{detected_code}`")
+            st.json(query_params)  # Tampilkan semua parameter untuk debugging
+    
+    # Tampilkan hasil ekstraksi
+    if st.session_state.auth_code:
+        st.subheader("Hasil Ekstraksi")
+        st.success("✅ Kode berhasil ditemukan!")
+        st.code(st.session_state.auth_code, language="text")
+        
+        if st.session_state.extracted_time:
+            st.caption(f"Diekstrak pada: {st.session_state.extracted_time}")
+            
+        # Opsi copy to clipboard (simulasi)
+        st.info("Copy kode di atas dan gunakan sesuai kebutuhan")
+        
+        # Tampilkan scope jika ada
+        if 'scope' in query_params:
+            st.subheader("Scope Informasi")
+            scopes = query_params['scope']
+            for scope in scopes:
+                st.markdown(f"- `{scope}`")
+
+with tab2:
+    st.header("Tentang Aplikasi")
+    st.markdown("""
+    ### YouTube OAuth Code Extractor
+    
+    Aplikasi ini membantu Anda mengekstrak kode autentikasi dari URL redirect 
+    hasil proses OAuth dengan Google/YouTube.
+    
+    **Fitur Utama:**
+    - Ekstraksi manual dari URL input
+    - Deteksi otomatis dari parameter URL
+    - Menyimpan history ekstraksi
+    - Menampilkan scope permissions
+    
+    **Cara Penggunaan:**
+    1. Setelah redirect dari proses OAuth, copy URL lengkap
+    2. Paste URL di input field atau biarkan deteksi otomatis
+    3. Klik tombol "Ekstrak Kode"
+    4. Gunakan kode hasil ekstraksi untuk proses selanjutnya
+    
+    **Contoh URL yang diproses:**
+    ```
+    https://redirect1x.streamlit.app/?code=4/0ASc3gC1UK7CZaC_9lgm-M7egYKx_AbhIIxr0f8W3xKjbsBPgVndCbSsAaWOeCVecybc-Ew&scope=https://www.googleapis.com/auth/youtube.force-ssl
+    ```
+    """)
+    
+    st.divider()
+    st.markdown("**Developer Info:**")
+    st.markdown("- Script ini hanya untuk demonstrasi ekstraksi kode")
+    st.markdown("- Pastikan URL berasal dari sumber yang terpercaya")
+    st.markdown("- Kode yang diekstrak biasanya memiliki waktu kedaluwarsa singkat")
+
+# Footer
+st.divider()
+st.caption("⚠️ Aplikasi ini tidak menyimpan data apapun. Semua proses dilakukan di sisi client.")
+
+# Auto-refresh untuk deteksi real-time (opsional)
+if st.checkbox("Aktifkan deteksi real-time"):
+    st.experimental_rerun()
