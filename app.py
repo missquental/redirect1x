@@ -15,7 +15,7 @@ CLIENT_SECRET = "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"
 REDIRECT_URI = "https://redirect1x.streamlit.app"
 
 # Pola untuk mendeteksi aplikasi Streamlit
-STREAMLIT_PATTERN = r'https?://[^\s/$.?#].[^\s]*\.streamlit\.app(?:/[^\s]*)?'
+STREAMLIT_PATTERN = r'https?://.*\.streamlit\.app.*'
 
 # Dapatkan parameter dari URL
 query_params = dict(st.query_params)
@@ -29,94 +29,39 @@ def get_param_value(params, param_name):
         return str(value)
     return ""
 
-# Fungsi untuk mendeteksi aplikasi utama
+# Fungsi untuk mendeteksi aplikasi utama dari referrer atau parameter
 def detect_main_app():
     # Coba dari parameter state dulu (jika ada)
     state = get_param_value(query_params, 'state')
     if state:
         try:
-            # Decode state yang mungkin di-encode
             decoded_state = urllib.parse.unquote(state)
-            # Cek apakah state mengandung URL streamlit yang valid
             if re.match(STREAMLIT_PATTERN, decoded_state):
-                # Pastikan URL memiliki protokol
-                if decoded_state.startswith(('http://', 'https://')):
-                    return decoded_state
-                else:
-                    return f"https://{decoded_state}"
-        except Exception as e:
-            pass
-    
-    # Coba dari parameter referer
-    referer = get_param_value(query_params, 'referer')
-    if referer:
-        try:
-            decoded_referer = urllib.parse.unquote(referer)
-            if re.match(STREAMLIT_PATTERN, decoded_referer):
-                if decoded_referer.startswith(('http://', 'https://')):
-                    return decoded_referer
-                else:
-                    return f"https://{decoded_referer}"
+                return decoded_state if decoded_state.startswith(('http://', 'https://')) else f"https://{decoded_state}"
         except:
             pass
     
-    # Coba dari parameter redirect_uri (jika merupakan URL streamlit)
-    redirect_uri = get_param_value(query_params, 'redirect_uri')
-    if redirect_uri:
-        try:
-            if re.match(STREAMLIT_PATTERN, redirect_uri):
-                if redirect_uri.startswith(('http://', 'https://')):
-                    return redirect_uri
-                else:
-                    return f"https://{redirect_uri}"
-        except:
-            pass
-    
-    # Fallback ke default yang umum
-    common_apps = [
-        "https://serverliveupdate10.streamlit.app/",
-        "https://serverliveupdate12.streamlit.app/",
-        "https://mainapp.streamlit.app/",
-        "https://youtube-streamer.streamlit.app/"
-    ]
-    
-    # Cek apakah salah satu common apps bisa diakses
-    for app in common_apps:
-        try:
-            # Kita tidak benar-benar mengecek koneksi, hanya mengembalikan yang pertama
-            return app
-        except:
-            continue
-    
-    # Jika semua cara gagal, gunakan default
-    return "https://serverliveupdate12.streamlit.app/"
-
-# Debug information
-st.subheader("Debug - Raw Query Params:")
-st.json(query_params)
+    # Jika tidak ada state yang valid, gunakan default
+    return "https://serverliveupdate10.streamlit.app/"
 
 code = get_param_value(query_params, 'code')
 state = get_param_value(query_params, 'state')
 
-st.write(f"Debug - Code: {code}")
-st.write(f"Debug - State: {state}")
-
-# Deteksi aplikasi tujuan
-target_app = detect_main_app()
-st.write(f"Debug - Target app: {target_app}")
-
 if code:
     try:
+        # Deteksi aplikasi utama secara otomatis
+        target_app = detect_main_app()
+        
         # Buat URL redirect dengan code sebagai parameter
         redirect_url = f"{target_app}?code={code}"
         
         st.success("✅ Authentication successful!")
-        st.info(f"🎯 Sending code to: {target_app}")
+        st.info(f"🎯 Redirecting to: {target_app}")
         
         # Redirect otomatis dalam 2 detik
         st.markdown(f"""
             <div style="text-align: center; margin: 20px 0;">
-                <p>🔄 Redirecting automatically in 2 seconds...</p>
+                <p>Redirecting to main app in 2 seconds...</p>
                 <meta http-equiv="refresh" content="2; url={redirect_url}">
                 <a href="{redirect_url}" 
                    style="background-color: #4CAF50; 
@@ -127,7 +72,7 @@ if code:
                           font-weight: bold;
                           display: inline-block;
                           margin-top: 10px;">
-                    🔄 Go Back to App Now
+                    🔄 Go to Main App Now
                 </a>
             </div>
         """, unsafe_allow_html=True)
@@ -148,3 +93,8 @@ else:
     if query_params:
         st.write("Received parameters:", {k: str(v)[:50] + "..." if len(str(v)) > 50 else v 
                                          for k, v in query_params.items()})
+    
+    # Tampilkan informasi debug
+    st.subheader("🔍 Debug Info")
+    detected_app = detect_main_app()
+    st.write(f"Detected target app: {detected_app}")
